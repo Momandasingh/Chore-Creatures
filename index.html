@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Chore Creatures!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family:'Nunito',sans-serif;
+    min-height:100vh;
+    background:var(--bg,linear-gradient(135deg,#667eea 0%,#764ba2 100%));
+    overflow-x:hidden;
+    transition:background 0.6s ease;
+  }
+
+  /* ── BUBBLES ── */
+  .bubbles { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0; overflow:hidden; }
+  .bubble  { position:absolute; border-radius:50%; opacity:0.12; animation:floatUp linear infinite; }
+  @keyframes floatUp {
+    0%   { transform:translateY(110vh) scale(0.4); opacity:0; }
+    10%  { opacity:0.12; }
+    90%  { opacity:0.12; }
+    100% { transform:translateY(-10vh) scale(1); opacity:0; }
+  }
+
+  /* ── SHELL ── */
+  .app { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:14px 12px; min-height:100vh; }
+
+  /* ── HEADER ── */
+  .header { text-align:center; padding:16px 0 10px; }
+  .header h1 { font-family:'Fredoka One',cursive; font-size:2rem; color:#fff; text-shadow:2px 3px 0 rgba(0,0,0,0.15); }
+  .header .sub { color:rgba(255,255,255,0.82); font-size:0.88rem; margin-top:2px; }
+
+  /* ── SCOREBOARD ── */
+  .scoreboard { display:flex; align-items:center; justify-content:center; gap:8px; margin:10px 0 14px; flex-wrap:wrap; }
+  .score-chip {
+    background:rgba(255,255,255,0.18); border-radius:20px; padding:6px 16px;
+    color:#fff; font-weight:800; font-size:0.88rem; text-align:center;
+    transition:all 0.4s; white-space:nowrap;
+  }
+  .score-chip.leading {
+    background:linear-gradient(135deg,#f6d365,#fda085); color:#7c2d12;
+    box-shadow:0 4px 16px rgba(253,160,133,0.45); transform:scale(1.06);
+  }
+  .vs-badge { font-family:'Fredoka One',cursive; font-size:1.1rem; color:rgba(255,255,255,0.7); flex-shrink:0; }
+
+  /* ── ARENA & TASK GRIDS ── */
+  .arena, .tasks-grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+    gap:10px;
+    margin-bottom:12px;
+  }
+
+  /* ── PET CARD ── */
+  .pet-card {
+    background:rgba(255,255,255,0.93); border-radius:20px;
+    box-shadow:0 8px 28px rgba(0,0,0,0.12); padding:16px 12px;
+    text-align:center; position:relative; overflow:hidden; transition:box-shadow 0.4s;
+  }
+  .pet-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:5px;
+    background:var(--kid-bar,linear-gradient(90deg,#f6d365,#fda085));
+  }
+  .pet-card.winner { box-shadow:0 0 0 3px #f6d365, 0 8px 28px rgba(0,0,0,0.12); }
+
+  .edit-toggle {
+    position:absolute; top:10px; right:10px;
+    background:rgba(109,40,217,0.1); border:none; border-radius:8px;
+    padding:4px 10px; cursor:pointer; font-size:0.7rem; font-weight:700;
+    color:#6d28d9; font-family:'Nunito',sans-serif;
+  }
+
+  .pet-emoji { font-size:3.6rem; line-height:1; animation:petBounce 2s ease-in-out infinite; display:block; user-select:none; }
+  .pet-emoji.celebrating { animation:petCelebrate 0.5s ease-in-out 3; }
+  @keyframes petBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+  @keyframes petCelebrate {
+    0%  {transform:rotate(0) scale(1)}  25%{transform:rotate(-15deg) scale(1.2)}
+    50% {transform:rotate(15deg) scale(1.2)} 75%{transform:rotate(-10deg) scale(1.1)}
+    100%{transform:rotate(0) scale(1)}
+  }
+
+  .pet-name-disp { font-family:'Fredoka One',cursive; font-size:1rem; color:#5b21b6; margin-top:5px; }
+  .kid-name-disp { font-size:0.72rem; color:#9ca3af; font-weight:600; margin-top:1px; }
+  .pet-mood-text { font-size:0.75rem; color:#7c3aed; font-weight:700; margin-top:4px; }
+
+  .hbar-wrap { margin:9px auto 0; max-width:180px; }
+  .hbar-label { display:flex; justify-content:space-between; font-size:0.68rem; font-weight:700; color:#6d28d9; margin-bottom:4px; }
+  .hbar-bg { height:12px; background:#e9d5ff; border-radius:10px; overflow:hidden; }
+  .hbar-fill { height:100%; border-radius:10px; transition:width 0.6s ease,background 0.5s; background:linear-gradient(90deg,#f6d365,#fda085); }
+  .hbar-fill.high { background:linear-gradient(90deg,#4ade80,#22d3ee); }
+  .hbar-fill.max  { background:linear-gradient(90deg,#f093fb,#f5576c,#fda085); }
+
+  .all-done-badge { background:linear-gradient(135deg,#f6d365,#fda085); border-radius:10px; padding:5px 10px; margin-top:8px; font-family:'Fredoka One',cursive; font-size:0.82rem; color:#fff; animation:popIn 0.3s ease-out; display:inline-block; }
+  @keyframes popIn { 0%{transform:scale(0.8);opacity:0} 100%{transform:scale(1);opacity:1} }
+
+  /* ── EDIT PANEL ── */
+  .edit-panel { margin-top:8px; }
+  .pet-name-input { font-family:'Fredoka One',cursive; font-size:0.95rem; text-align:center; border:2px dashed #c4b5fd; border-radius:8px; padding:3px 8px; color:#5b21b6; background:#f5f3ff; outline:none; width:120px; }
+  .pet-picker { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin:7px 0; }
+  .pet-option { font-size:1.5rem; cursor:pointer; padding:4px; border-radius:9px; border:2.5px solid transparent; transition:all 0.18s; background:#f5f3ff; }
+  .pet-option:hover { transform:scale(1.15); }
+  .pet-option.selected { border-color:#7c3aed; background:#ede9fe; transform:scale(1.1); }
+  .done-btn { margin-top:6px; background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:5px 16px; font-family:'Nunito',sans-serif; font-weight:700; cursor:pointer; font-size:0.8rem; }
+
+  /* ── PERIOD SECTIONS ── */
+  .period-section { margin-bottom:10px; }
+  .period-header { display:flex; align-items:center; gap:5px; font-family:'Fredoka One',cursive; font-size:0.78rem; color:rgba(255,255,255,0.92); margin-bottom:5px; padding:4px 8px; border-radius:9px; }
+  .period-header.morning   { background:rgba(246,211,101,0.28); }
+  .period-header.afternoon { background:rgba(79,172,254,0.22);  }
+  .period-header.evening   { background:rgba(160,119,251,0.28); }
+
+  /* ── TASK CARD ── */
+  .task-card {
+    background:rgba(255,255,255,0.93); border-radius:12px;
+    box-shadow:0 3px 10px rgba(0,0,0,0.07); padding:9px 10px; margin-bottom:5px;
+    display:flex; align-items:center; gap:8px;
+    cursor:pointer; transition:all 0.2s; border:2px solid transparent;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .task-card:active { transform:scale(0.97); }
+  .task-card.done { opacity:0.5; border-color:#bbf7d0; }
+  .task-card.done .task-name { text-decoration:line-through; color:#9ca3af; }
+  .task-icon { font-size:1.15rem; flex-shrink:0; }
+  .task-info { flex:1; min-width:0; }
+  .task-name { font-weight:700; font-size:0.75rem; color:#1f2937; line-height:1.2; }
+  .task-pts  { font-size:0.64rem; color:#7c3aed; font-weight:600; }
+  .task-check { width:22px; height:22px; border-radius:50%; border:2.5px solid #d1d5db; display:flex; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0; font-size:0.7rem; }
+  .task-card.done .task-check { background:#22c55e; border-color:#22c55e; color:#fff; }
+
+  /* ── PARENT ZONE ── */
+  .parent-zone { background:rgba(255,255,255,0.13); border-radius:18px; padding:14px; margin-bottom:14px; }
+  .parent-zone summary { color:rgba(255,255,255,0.85); font-weight:700; cursor:pointer; font-size:0.88rem; user-select:none; }
+
+  .p-input { width:100%; padding:7px 11px; border-radius:9px; border:none; font-family:'Nunito',sans-serif; font-size:0.85rem; background:rgba(255,255,255,0.9); outline:none; }
+  .p-btn { background:#7c3aed; color:#fff; border:none; border-radius:9px; padding:7px 13px; font-family:'Nunito',sans-serif; font-weight:700; cursor:pointer; font-size:0.82rem; transition:background 0.2s; white-space:nowrap; }
+  .p-btn:hover { background:#6d28d9; }
+  .p-btn.sm { padding:4px 9px; font-size:0.75rem; }
+  .p-btn.danger { background:rgba(239,68,68,0.7); }
+  .p-btn.danger:hover { background:rgba(239,68,68,0.9); }
+  .p-btn.add { background:rgba(34,197,94,0.8); }
+  .p-btn.add:hover { background:rgba(34,197,94,1); }
+
+  /* ── KID SETTINGS GRID ── */
+  .kid-settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-top:12px; }
+  .kid-settings-card { background:rgba(255,255,255,0.1); border-radius:14px; padding:12px; }
+  .kid-settings-label { color:rgba(255,255,255,0.9); font-weight:800; font-size:0.82rem; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+
+  /* ── THEME PICKER ── */
+  .theme-section { margin-top:14px; }
+  .theme-label { color:rgba(255,255,255,0.85); font-weight:700; font-size:0.82rem; margin-bottom:10px; }
+  .theme-swatches { display:flex; gap:10px; flex-wrap:wrap; }
+  .theme-swatch {
+    width:48px; height:48px; border-radius:14px; cursor:pointer;
+    border:3px solid transparent; transition:all 0.2s;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.2rem; box-shadow:0 3px 10px rgba(0,0,0,0.2);
+  }
+  .theme-swatch:hover { transform:scale(1.1); }
+  .theme-swatch.active { border-color:#fff; transform:scale(1.1); box-shadow:0 0 0 3px rgba(255,255,255,0.4), 0 3px 10px rgba(0,0,0,0.2); }
+
+  /* ── DIVIDER ── */
+  .divider { display:flex; align-items:center; gap:8px; margin:12px 0 8px; }
+  .divider hr { flex:1; border:none; border-top:1px solid rgba(255,255,255,0.2); }
+  .divider span { color:rgba(255,255,255,0.6); font-size:0.76rem; font-weight:700; white-space:nowrap; }
+
+  /* ── ADD TASK ROW ── */
+  .add-row { display:flex; gap:6px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+  .emoji-btn { font-size:1.15rem; cursor:pointer; background:rgba(255,255,255,0.9); border:none; border-radius:8px; padding:5px 8px; flex-shrink:0; }
+  .emoji-tray { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; background:rgba(255,255,255,0.88); border-radius:10px; padding:8px; }
+  .emoji-tray span { font-size:1.1rem; cursor:pointer; padding:3px; border-radius:6px; transition:background 0.15s; }
+  .emoji-tray span:hover { background:#ede9fe; }
+  .period-select { background:rgba(255,255,255,0.9); border:none; border-radius:8px; padding:5px 7px; font-family:'Nunito',sans-serif; font-size:0.78rem; font-weight:700; color:#5b21b6; cursor:pointer; outline:none; }
+
+  /* ── DRAG ROWS ── */
+  .drag-row { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.12); border-radius:10px; padding:7px 8px; margin-bottom:5px; cursor:grab; transition:all 0.15s; border:2px solid transparent; color:#fff; font-size:0.8rem; }
+  .drag-row.drag-over { border-color:#f6d365; background:rgba(246,211,101,0.2); }
+  .drag-row.dragging  { opacity:0.4; }
+  .drag-handle { cursor:grab; opacity:0.5; font-size:1rem; flex-shrink:0; user-select:none; }
+  .drag-row-info { flex:1; min-width:0; }
+  .order-btns { display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+  .order-btn { background:rgba(255,255,255,0.2); border:none; border-radius:4px; color:#fff; cursor:pointer; font-size:0.68rem; padding:1px 5px; line-height:1.4; }
+  .order-btn:hover { background:rgba(255,255,255,0.35); }
+  .rm-btn { background:none; border:none; cursor:pointer; color:rgba(255,255,255,0.45); font-size:0.95rem; padding:2px 4px; transition:color 0.15s; flex-shrink:0; }
+  .rm-btn:hover { color:#fff; }
+
+  /* ── RESET ── */
+  .reset-btn { display:block; margin:4px auto 20px; background:rgba(255,255,255,0.18); border:2px solid rgba(255,255,255,0.3); color:#fff; border-radius:12px; padding:9px 22px; font-family:'Nunito',sans-serif; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
+  .reset-btn:hover { background:rgba(255,255,255,0.27); }
+
+  /* ── EFFECTS ── */
+  .confetti-container { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100; }
+  .confetti-piece { position:absolute; top:-20px; opacity:0; animation:confettiFall 2.5s ease-in forwards; }
+  @keyframes confettiFall { 0%{opacity:1;transform:translateY(0) rotate(0)} 100%{opacity:0;transform:translateY(100vh) rotate(720deg)} }
+  .sparkle { position:fixed; pointer-events:none; z-index:200; font-size:1.4rem; animation:sparklePop 0.6s ease-out forwards; }
+  @keyframes sparklePop { 0%{transform:scale(0) rotate(0);opacity:1} 50%{transform:scale(1.2) rotate(180deg);opacity:1} 100%{transform:scale(0) rotate(360deg) translateY(-40px);opacity:0} }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width:500px){
+    .pet-emoji{font-size:2.8rem}
+    .task-name{font-size:0.7rem}
+    .task-card{padding:7px 8px;gap:6px}
+    .pet-card{padding:12px 8px}
+  }
+</style>
+</head>
+<body>
+<div class="bubbles" id="bubbles"></div>
+<div class="app" id="app"></div>
+
+<script>
+// ─── CONSTANTS ───
+const PET_OPTIONS = ['🐱','🐶','🐰','🐼','🦊','🐸','🦄','🐨','🐯','🐲','🐙','🦋','🐧','🦁','🐻','🦝','🐮','🐷'];
+const TASK_EMOJIS = ['🪥','👕','📚','🍽️','🛏️','🎒','🧹','🚿','✏️','🌙','🥦','💤','🧺','🎵','⏰','🏃','🦷','🎹','🧸','💊','🫧','🎨','🏀'];
+const PERIODS     = ['morning','afternoon','evening'];
+const PERIOD_META = {
+  morning:   { label:'🌅 Morning',   cls:'morning'   },
+  afternoon: { label:'☀️ Afternoon', cls:'afternoon' },
+  evening:   { label:'🌙 Evening',   cls:'evening'   },
+};
+const KID_BARS = [
+  'linear-gradient(90deg,#f6d365,#fda085)',
+  'linear-gradient(90deg,#4facfe,#a78bfa)',
+  'linear-gradient(90deg,#43e97b,#38f9d7)',
+  'linear-gradient(90deg,#f093fb,#f5576c)',
+];
+const THEMES = [
+  { id:'purple', bg:'linear-gradient(135deg,#667eea 0%,#764ba2 100%)', swatch:'#7c3aed', emoji:'💜' },
+  { id:'ocean',  bg:'linear-gradient(135deg,#1a6eb5 0%,#0ea5e9 100%)', swatch:'#0ea5e9', emoji:'💙' },
+  { id:'forest', bg:'linear-gradient(135deg,#166534 0%,#16a34a 100%)', swatch:'#16a34a', emoji:'💚' },
+  { id:'sunset', bg:'linear-gradient(135deg,#c2410c 0%,#f97316 100%)', swatch:'#f97316', emoji:'🧡' },
+  { id:'candy',  bg:'linear-gradient(135deg,#db2777 0%,#f472b6 100%)', swatch:'#f472b6', emoji:'💗' },
+  { id:'night',  bg:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)', swatch:'#1e3a5f', emoji:'🌙' },
+  { id:'berry',  bg:'linear-gradient(135deg,#7e22ce 0%,#be185d 100%)', swatch:'#be185d', emoji:'🍇' },
+  { id:'mint',   bg:'linear-gradient(135deg,#0d9488 0%,#6ee7b7 100%)', swatch:'#0d9488', emoji:'🌿' },
+];
+
+const DEFAULT_TASKS = [
+  { id:1,  name:'Brush teeth',        icon:'🪥', points:10, period:'morning'   },
+  { id:2,  name:'Get dressed',        icon:'👕', points:10, period:'morning'   },
+  { id:3,  name:'Make bed',           icon:'🛏️', points:10, period:'morning'   },
+  { id:4,  name:'Eat breakfast',      icon:'🍽️', points:10, period:'morning'   },
+  { id:5,  name:'Shoes & backpack',   icon:'🎒', points:10, period:'morning'   },
+  { id:6,  name:'Homework / reading', icon:'📚', points:15, period:'afternoon' },
+  { id:7,  name:'Practice piano',     icon:'🎵', points:15, period:'afternoon' },
+  { id:8,  name:'Clean up toys',      icon:'🧹', points:10, period:'afternoon' },
+  { id:9,  name:'Brush teeth',        icon:'🪥', points:10, period:'evening'   },
+  { id:10, name:'Floss teeth',        icon:'🦷', points:10, period:'evening'   },
+];
+
+// ─── STATE ───
+let state = loadData('taskpets_v4', {
+  kids: [
+    { id:'k0', name:'Player 1', pet:'🐱', petName:'Whiskers', completed:[] },
+    { id:'k1', name:'Player 2', pet:'🐶', petName:'Buddy',    completed:[] },
+  ],
+  tasks:   null,
+  theme:   'purple',
+  nextKid: 2,
+});
+
+function loadData(key, fallback) {
+  try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : fallback; }
+  catch { return fallback; }
+}
+function save() { try { localStorage.setItem('taskpets_v4', JSON.stringify(state)); } catch {} }
+function getTasks()  { return state.tasks || DEFAULT_TASKS; }
+function getKid(id)  { return state.kids.find(k=>k.id===id); }
+function kidIndex(id){ return state.kids.findIndex(k=>k.id===id); }
+
+function happiness(kid) {
+  const tasks = getTasks();
+  if (!tasks.length) return 0;
+  const total  = tasks.reduce((s,t)=>s+t.points,0);
+  const earned = tasks.filter(t=>kid.completed.includes(t.id)).reduce((s,t)=>s+t.points,0);
+  return Math.round((earned/total)*100);
+}
+function petMood(h) {
+  if (h===100) return { face:'😍', text:'ALL DONE! 🎉', cls:'celebrating' };
+  if (h>=75)   return { face:'😊', text:'Feeling great!',   cls:'' };
+  if (h>=50)   return { face:'😃', text:'Getting happier!', cls:'' };
+  if (h>=25)   return { face:'😐', text:'Needs more love…', cls:'' };
+  return         { face:'😢', text:'Help me!',             cls:'' };
+}
+function applyTheme(id) {
+  const t = THEMES.find(t=>t.id===id) || THEMES[0];
+  document.body.style.setProperty('--bg', t.bg);
+}
+
+// ─── UI STATE ───
+let editingKid    = null;
+let showEmojiTray = false;
+let newTaskName   = '';
+let newTaskEmoji  = '⭐';
+let newTaskPeriod = 'morning';
+let dragId        = null;
+
+// ─── RENDER ───
+function render() {
+  applyTheme(state.theme);
+  const tasks   = getTasks();
+  const maxH    = Math.max(...state.kids.map(k=>happiness(k)));
+
+  // Scoreboard
+  const scoreHtml = state.kids.map((k,i) => {
+    const h = happiness(k);
+    const isLead = h===maxH && h>0;
+    return `<div class="score-chip ${isLead?'leading':''}">${k.pet} ${k.name}: ${h}%</div>
+      ${i<state.kids.length-1?'<div class="vs-badge">⚔️</div>':''}`;
+  }).join('');
+
+  // Pet cards
+  const arenaHtml = state.kids.map((k,i)=>petCard(k,i,happiness(k))).join('');
+
+  // Task columns
+  const tasksHtml = state.kids.map((k,i)=>taskCol(k,i,tasks)).join('');
+
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <h1>🐾 Chore Creatures! 🐾</h1>
+      <div class="sub">Complete your chores, keep your creature happy, beat your siblings!</div>
+    </div>
+    <div class="scoreboard">${scoreHtml}</div>
+    <div class="arena">${arenaHtml}</div>
+    <div class="tasks-grid">${tasksHtml}</div>
+    ${parentZone(tasks)}
+    <button class="reset-btn" onclick="resetDay()">🔄 Reset for New Day</button>
+  `;
+}
+
+// ─── PET CARD ───
+function petCard(kid, idx, h) {
+  const mood  = petMood(h);
+  const bar   = h===100?'max':h>=60?'high':'';
+  const isEd  = editingKid===kid.id;
+  const color = KID_BARS[idx % KID_BARS.length];
+  return `
+    <div class="pet-card ${h===100?'winner':''}" style="--kid-bar:${color}">
+      <button class="edit-toggle" onclick="toggleEdit('${kid.id}')">✏️ Edit</button>
+      <span class="pet-emoji ${mood.cls}" id="pet_${kid.id}">${kid.pet}</span>
+      ${isEd ? `
+        <div class="edit-panel">
+          <div style="margin-bottom:6px;font-size:0.72rem;color:#7c3aed;font-weight:700">Pet name:</div>
+          <input class="pet-name-input" id="petNameIn_${kid.id}" value="${kid.petName}"
+            onkeydown="if(event.key==='Enter')savePetName('${kid.id}')" />
+          <div style="margin:8px 0 4px;font-size:0.72rem;color:#7c3aed;font-weight:700">Choose animal:</div>
+          <div class="pet-picker">
+            ${PET_OPTIONS.map(p=>`<span class="pet-option ${kid.pet===p?'selected':''}" onclick="pickPet('${kid.id}','${p}')">${p}</span>`).join('')}
+          </div>
+          <button class="done-btn" onclick="savePetName('${kid.id}')">Done ✓</button>
+        </div>
+      ` : `
+        <div class="pet-name-disp">${kid.petName}</div>
+        <div class="kid-name-disp">${kid.name}'s pet</div>
+      `}
+      <div class="pet-mood-text">${mood.face} ${mood.text}</div>
+      <div class="hbar-wrap">
+        <div class="hbar-label"><span>Happiness</span><span>${h}%</span></div>
+        <div class="hbar-bg"><div class="hbar-fill ${bar}" style="width:${h}%"></div></div>
+      </div>
+      ${h===100?'<div class="all-done-badge">🏆 All Done!</div>':''}
+    </div>`;
+}
+
+// ─── TASK COLUMN ───
+function taskCol(kid, idx, tasks) {
+  const rows = PERIODS.map(period => {
+    const pts = tasks.filter(t=>t.period===period);
+    if (!pts.length) return '';
+    const m = PERIOD_META[period];
+    return `<div class="period-section">
+      <div class="period-header ${m.cls}">${m.label}</div>
+      ${pts.map(t=>{
+        const done = kid.completed.includes(t.id);
+        return `<div class="task-card ${done?'done':''}" onclick="toggleTask('${kid.id}',${t.id},event)">
+          <div class="task-icon">${t.icon}</div>
+          <div class="task-info">
+            <div class="task-name">${t.name}</div>
+            <div class="task-pts">+${t.points} pts</div>
+          </div>
+          <div class="task-check">${done?'✓':''}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+  return `<div>
+    <div style="font-family:'Fredoka One',cursive;font-size:0.9rem;color:#fff;margin-bottom:8px">${kid.pet} ${kid.name}</div>
+    ${rows}
+  </div>`;
+}
+
+// ─── PARENT ZONE ───
+function parentZone(tasks) {
+  const theme = THEMES.find(t=>t.id===state.theme)||THEMES[0];
+  return `
+    <details class="parent-zone">
+      <summary>👩‍👧‍👦 Parent Settings</summary>
+
+      <!-- THEME PICKER -->
+      <div class="theme-section">
+        <div class="theme-label">🎨 Background Theme</div>
+        <div class="theme-swatches">
+          ${THEMES.map(t=>`
+            <div class="theme-swatch ${state.theme===t.id?'active':''}"
+              style="background:${t.bg}" onclick="setTheme('${t.id}')"
+              title="${t.id}">
+              ${state.theme===t.id?'✓':''}
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- KIDS SETTINGS -->
+      <div class="divider"><hr/><span>Children</span><hr/></div>
+      <div class="kid-settings-grid">
+        ${state.kids.map((k,i)=>`
+          <div class="kid-settings-card" style="border-top:3px solid ${kidAccent(i)}">
+            <div class="kid-settings-label">
+              <span>${k.pet} ${k.name}</span>
+              ${state.kids.length>1?`<button class="p-btn sm danger" onclick="removeKid('${k.id}')">Remove</button>`:''}
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input class="p-input" id="kidName_${k.id}" value="${k.name}" placeholder="Name…" />
+              <button class="p-btn sm" onclick="saveKidName('${k.id}')">Save</button>
+            </div>
+            <div style="color:rgba(255,255,255,0.7);font-size:0.75rem;margin-bottom:5px">Tap ✏️ Edit on the pet card above to change the animal and pet name.</div>
+          </div>`).join('')}
+        ${state.kids.length<4?`
+          <div class="kid-settings-card" style="display:flex;align-items:center;justify-content:center;border:2px dashed rgba(255,255,255,0.3);background:transparent">
+            <button class="p-btn add" onclick="addKid()">+ Add Child</button>
+          </div>`:
+          `<div style="color:rgba(255,255,255,0.5);font-size:0.78rem;padding:10px">Max 4 children reached.</div>`}
+      </div>
+
+      <!-- TASK EDITOR -->
+      <div class="divider"><hr/><span>Tasks — drag ≡ or use ▲▼ to reorder</span><hr/></div>
+      <div id="taskListEditor">
+        ${tasks.map((t,i)=>dragRow(t,i,tasks.length)).join('')}
+      </div>
+      <div class="divider"><hr/><span>Add a task</span><hr/></div>
+      <div class="add-row">
+        <button class="emoji-btn" onclick="toggleEmojiTray()">${newTaskEmoji}</button>
+        <input class="p-input" id="newTaskIn" placeholder="Task name…" value="${newTaskName}"
+          oninput="newTaskName=this.value" onkeydown="if(event.key==='Enter')addTask()" style="min-width:0;flex:1" />
+        <select class="period-select" onchange="newTaskPeriod=this.value">
+          <option value="morning"   ${newTaskPeriod==='morning'  ?'selected':''}>🌅 Morning</option>
+          <option value="afternoon" ${newTaskPeriod==='afternoon'?'selected':''}>☀️ Afternoon</option>
+          <option value="evening"   ${newTaskPeriod==='evening'  ?'selected':''}>🌙 Evening</option>
+        </select>
+        <button class="p-btn sm" onclick="addTask()">Add</button>
+      </div>
+      ${showEmojiTray?`<div class="emoji-tray">${TASK_EMOJIS.map(e=>`<span onclick="pickTaskEmoji('${e}')">${e}</span>`).join('')}</div>`:''}
+    </details>`;
+}
+
+function kidAccent(i) {
+  const accents=['#fda085','#a78bfa','#38f9d7','#f5576c'];
+  return accents[i%accents.length];
+}
+
+function dragRow(t, i, total) {
+  const pm = PERIOD_META[t.period];
+  return `<div class="drag-row" id="dr_${t.id}" draggable="true"
+    ondragstart="onDragStart(event,${t.id})" ondragover="onDragOver(event,${t.id})"
+    ondrop="onDrop(event,${t.id})" ondragend="onDragEnd()">
+    <span class="drag-handle">≡</span>
+    <span style="font-size:1.1rem">${t.icon}</span>
+    <div class="drag-row-info">
+      <div style="font-weight:700;line-height:1.2">${t.name}</div>
+      <div style="opacity:0.6;font-size:0.7rem">${pm.label} · +${t.points} pts</div>
+    </div>
+    <select class="period-select" style="font-size:0.7rem;padding:3px 5px"
+      onchange="changeTaskPeriod(${t.id},this.value)" onclick="event.stopPropagation()">
+      <option value="morning"   ${t.period==='morning'  ?'selected':''}>🌅</option>
+      <option value="afternoon" ${t.period==='afternoon'?'selected':''}>☀️</option>
+      <option value="evening"   ${t.period==='evening'  ?'selected':''}>🌙</option>
+    </select>
+    <div class="order-btns">
+      <button class="order-btn" onclick="moveTask(${t.id},-1)" ${i===0?'disabled':''}>▲</button>
+      <button class="order-btn" onclick="moveTask(${t.id}, 1)" ${i===total-1?'disabled':''}>▼</button>
+    </div>
+    <button class="rm-btn" onclick="removeTask(${t.id})">✕</button>
+  </div>`;
+}
+
+// ─── ACTIONS ───
+function toggleTask(kidId, id, event) {
+  const kid = getKid(kidId);
+  if (!kid) return;
+  const wasDone = kid.completed.includes(id);
+  if (wasDone) {
+    kid.completed = kid.completed.filter(x=>x!==id);
+  } else {
+    kid.completed.push(id);
+    spawnSparkle(event.clientX, event.clientY);
+    if (happiness(kid)===100) setTimeout(launchConfetti,300);
+  }
+  save(); render();
+  if (!wasDone) {
+    const el = document.getElementById('pet_'+kidId);
+    if (el) { el.classList.add('celebrating'); setTimeout(()=>el.classList.remove('celebrating'),1500); }
+  }
+}
+
+function toggleEdit(kidId) {
+  editingKid = editingKid===kidId ? null : kidId;
+  render();
+  if (editingKid) { const inp=document.getElementById('petNameIn_'+kidId); if(inp) inp.focus(); }
+}
+function savePetName(kidId) {
+  const inp = document.getElementById('petNameIn_'+kidId);
+  const kid = getKid(kidId);
+  if (inp&&inp.value.trim()&&kid) kid.petName=inp.value.trim();
+  editingKid=null; save(); render();
+}
+function pickPet(kidId, emoji) {
+  const kid = getKid(kidId);
+  if (kid) kid.pet=emoji;
+  save(); render();
+}
+function saveKidName(kidId) {
+  const inp = document.getElementById('kidName_'+kidId);
+  const kid = getKid(kidId);
+  if (inp&&inp.value.trim()&&kid) kid.name=inp.value.trim();
+  save(); render();
+}
+
+function addKid() {
+  if (state.kids.length>=4) return;
+  const pets = ['🐱','🐶','🐰','🐼','🦊','🐸','🦄','🐨'];
+  const used  = state.kids.map(k=>k.pet);
+  const pet   = pets.find(p=>!used.includes(p)) || '🌟';
+  const names = ['Fluffy','Sparky','Cotton','Panda'];
+  const n     = state.nextKid||state.kids.length;
+  state.kids.push({ id:'k'+n, name:'Player '+(n+1), pet, petName:names[n%names.length], completed:[] });
+  state.nextKid = (n+1);
+  save(); render();
+}
+function removeKid(kidId) {
+  if (state.kids.length<=1) return;
+  state.kids = state.kids.filter(k=>k.id!==kidId);
+  save(); render();
+}
+
+function setTheme(id) { state.theme=id; save(); render(); }
+
+function addTask() {
+  const name = newTaskName.trim();
+  if (!name) return;
+  const tasks  = getTasks();
+  const maxId  = tasks.reduce((m,t)=>Math.max(m,t.id),0);
+  state.tasks  = [...tasks,{ id:maxId+1, name, icon:newTaskEmoji, points:10, period:newTaskPeriod }];
+  newTaskName=''; newTaskEmoji='⭐'; showEmojiTray=false;
+  save(); render();
+}
+function removeTask(id) {
+  state.tasks = getTasks().filter(t=>t.id!==id);
+  state.kids.forEach(k=>{ k.completed=k.completed.filter(x=>x!==id); });
+  save(); render();
+}
+function changeTaskPeriod(id, period) {
+  state.tasks = getTasks().map(t=>t.id===id?{...t,period}:t);
+  save(); render();
+}
+function moveTask(id, dir) {
+  const tasks=[...getTasks()]; const idx=tasks.findIndex(t=>t.id===id); const swap=idx+dir;
+  if(swap<0||swap>=tasks.length) return;
+  [tasks[idx],tasks[swap]]=[tasks[swap],tasks[idx]];
+  state.tasks=tasks; save(); render();
+}
+function toggleEmojiTray() { showEmojiTray=!showEmojiTray; render(); }
+function pickTaskEmoji(e)   { newTaskEmoji=e; showEmojiTray=false; render(); }
+function resetDay() { state.kids.forEach(k=>k.completed=[]); save(); render(); }
+
+// ─── DRAG & DROP ───
+function onDragStart(event,id){ dragId=id; event.dataTransfer.effectAllowed='move'; setTimeout(()=>{ const el=document.getElementById('dr_'+id); if(el) el.classList.add('dragging'); },0); }
+function onDragOver(event,id) { event.preventDefault(); event.dataTransfer.dropEffect='move'; document.querySelectorAll('.drag-row').forEach(r=>r.classList.remove('drag-over')); const el=document.getElementById('dr_'+id); if(el&&id!==dragId) el.classList.add('drag-over'); }
+function onDrop(event,targetId){ event.preventDefault(); if(dragId===null||dragId===targetId) return; const tasks=[...getTasks()]; const fi=tasks.findIndex(t=>t.id===dragId); const ti=tasks.findIndex(t=>t.id===targetId); if(fi===-1||ti===-1) return; const [m]=tasks.splice(fi,1); tasks.splice(ti,0,m); state.tasks=tasks; save(); render(); }
+function onDragEnd(){ dragId=null; document.querySelectorAll('.drag-row').forEach(r=>{ r.classList.remove('drag-over'); r.classList.remove('dragging'); }); }
+
+// ─── EFFECTS ───
+function spawnSparkle(x,y) {
+  ['⭐','✨','💫','🌟','💖'].sort(()=>Math.random()-0.5).slice(0,3).forEach(e=>{
+    const el=document.createElement('div'); el.className='sparkle'; el.textContent=e;
+    el.style.left=(x+(Math.random()-0.5)*60)+'px'; el.style.top=(y+(Math.random()-0.5)*60)+'px';
+    document.body.appendChild(el); setTimeout(()=>el.remove(),700);
+  });
+}
+function launchConfetti() {
+  const c=document.createElement('div'); c.className='confetti-container'; document.body.appendChild(c);
+  const colors=['#f6d365','#fda085','#f093fb','#4facfe','#43e97b','#fa709a','#fee140'];
+  for(let i=0;i<70;i++){
+    const p=document.createElement('div'); p.className='confetti-piece';
+    p.style.left=Math.random()*100+'%'; p.style.background=colors[Math.floor(Math.random()*colors.length)];
+    p.style.animationDelay=Math.random()*0.8+'s'; p.style.borderRadius=Math.random()>0.5?'50%':'2px';
+    p.style.width=(6+Math.random()*8)+'px'; p.style.height=(6+Math.random()*8)+'px';
+    c.appendChild(p);
+  }
+  setTimeout(()=>c.remove(),3500);
+}
+function initBubbles() {
+  const container=document.getElementById('bubbles');
+  const colors=['#f6d365','#fda085','#f093fb','#4facfe','#43e97b'];
+  for(let i=0;i<14;i++){
+    const b=document.createElement('div'); b.className='bubble';
+    const size=20+Math.random()*70;
+    b.style.cssText=`width:${size}px;height:${size}px;left:${Math.random()*100}%;background:${colors[Math.floor(Math.random()*colors.length)]};animation-duration:${8+Math.random()*14}s;animation-delay:${Math.random()*12}s`;
+    container.appendChild(b);
+  }
+}
+
+initBubbles();
+render();
+</script>
+</body>
+</html>
